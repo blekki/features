@@ -59,7 +59,7 @@ class ThreadPool
             // stop separator
             if (task_separater->joinable())
                 task_separater->join();
-                
+
             // stop other threads
             for (auto& th : threads)
                 th->shutdownProcess();
