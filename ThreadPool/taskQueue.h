@@ -50,9 +50,5 @@ class TaskQueue
             return task;
         }
 
-        void popFrontTask() {
-            tasks.pop();
-        }
-
         TaskQueue(){}
 };

@@ -15,7 +15,7 @@ class ThreadUnit
     private:
         // unique_ptr<thread> th;
         thread th = thread(&ThreadUnit::loop, this);
-        function<void()> task;
+        function<void()> task = NULL;
         mutex task_locker;
         
         atomic<bool> task_free = true;
@@ -23,6 +23,7 @@ class ThreadUnit
         
     private:
         void loop() {
+            // while a command to stop didn't come
             while(shutdown.load(memory_order_acquire) == false) {
                 function<void()> currentTask;
 
@@ -36,8 +37,9 @@ class ThreadUnit
                     currentTask();      // run task
                     currentTask = NULL; // reset task
                     
-                    task_free.store(true, memory_order_release);
+                    task_free.store(true, memory_order_release); // make thread unbusy
                 }
+
                 this_thread::sleep_for(chrono::milliseconds(10));
             }
         }
@@ -54,27 +56,19 @@ class ThreadUnit
             task_locker.unlock();
         }
         
-        void shutdownProcess() {
+        void shutdownProcess() { // safety way stop the processes of the current object
             shutdown.store(true, memory_order_release);
             if (th.joinable())
                 th.join();
         }
 
         // other constructs
-        ThreadUnit() {
-            this->task = NULL;
-            // th = make_unique<thread>(&ThreadUnit::loop, this);
-            // th = thread(&ThreadUnit::loop, this);
-        }
-
+        ThreadUnit(){}
         ThreadUnit(function<void()> newTask) {
             this->task = newTask;
-            // th = make_unique<thread>(&ThreadUnit::loop, this);
-            // th = thread(&ThreadUnit::loop, this);
         }
 
-        // ThreadUnit(const ThreadUnit&) : ThreadUnit() {} // not recommended
-
+        // the main thread cannot be copied, so turn of possibilities try do it
         ThreadUnit& operator=(const ThreadUnit&) = delete;
         ThreadUnit& operator=(ThreadUnit&&) = default;
         ThreadUnit(const ThreadUnit&) = delete;

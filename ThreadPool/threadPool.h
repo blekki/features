@@ -16,9 +16,9 @@ using namespace std;
 class ThreadPool
 {
     private:
-        vector<unique_ptr<ThreadUnit>> threads;
+        vector<unique_ptr<ThreadUnit>> threads; // our workers
+        unique_ptr<thread> task_separater;      // sents tasks to the "workers"
         TaskQueue taskQueue;
-        unique_ptr<thread> task_separater;
         mutex queue_locker;
 
         atomic<bool> shutdown = false;
@@ -48,32 +48,25 @@ class ThreadPool
         auto addNewTask(Func func, Args... args) {
             // todo: push a task pack at a time moment (not the individual tasks)
             queue_locker.lock();
-            
             auto future_result = taskQueue.pushTask(func, args...);
-            // taskQueue.pushTask(func, args...);
-
             queue_locker.unlock();
             return future_result;
         }
 
-        void shutdownProcesses() {
+        void shutdownProcesses() { // safety way stop the processes of the current object
             shutdown.store(true, memory_order_release);
 
+            // stop separator
             if (task_separater->joinable())
                 task_separater->join();
-
+                
+            // stop other threads
             for (auto& th : threads)
                 th->shutdownProcess();
         }
 
         ThreadPool() {
-            // here is an error
-            // threads.resize(THREAD_COUNT);
             for (uint i = 0; i < THREAD_COUNT; i++) {
-                // threads.emplace_back();
-                // threads.push_back(move(ThreadUnit()));
-                // threads[i] = move(ThreadUnit());
-
                 threads.push_back(make_unique<ThreadUnit>());
             }
             task_separater = make_unique<thread>(&ThreadPool::separateTasks, this);
