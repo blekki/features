@@ -15,7 +15,7 @@ class TaskQueue
         
     public:
         template<typename Func, typename... Args>
-        auto addNewTask(Func func, Args... args) -> future<typename result_of<Func(Args...)>::type> {
+        auto pushTask(Func func, Args... args) -> future<typename result_of<Func(Args...)>::type> {
             // Explanation:
             // Current method has "auto" as returning parameter because
             // we can't say right now what kind data type will be returned.
@@ -25,13 +25,13 @@ class TaskQueue
 
             // our task
             auto task = make_shared<packaged_task<return_type()>>(
-                bind(forward<Func>(func), forward<Args>(args)...)
-                // bind(func, args...)
+                // bind(forward<Func>(func), forward<Args>(args)...)
+                bind(func, args...)
             );
 
             // an instruction (function) which runs the task
             auto wrapped_task = [task]() { 
-                (*task)(); 
+                (*task)();
             };
 
             future<return_type> result = task->get_future(); // future result
@@ -44,11 +44,15 @@ class TaskQueue
             return !tasks.empty();
         }
 
-        function<void()> getFrontTask() {
-            return tasks.front();
+        function<void()> getNextTask() {
+            function<void()> task = tasks.front();
+            tasks.pop();
+            return task;
         }
 
         void popFrontTask() {
             tasks.pop();
         }
+
+        TaskQueue(){}
 };

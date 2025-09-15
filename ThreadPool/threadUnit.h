@@ -13,44 +13,32 @@ using namespace std;
 class ThreadUnit
 {
     private:
-        thread th;
-        atomic<bool> shutdown = false;
-
+        // unique_ptr<thread> th;
+        thread th = thread(&ThreadUnit::loop, this);
         function<void()> task;
         mutex task_locker;
-        atomic<bool> task_free = true;
-        // !!!!!!!!!!!!!!
-        // don't know what todo with a function task atomaric :(
         
-    public:
+        atomic<bool> task_free = true;
+        atomic<bool> shutdown = false;
+        
+    private:
         void loop() {
             while(shutdown.load(memory_order_acquire) == false) {
-                
+                function<void()> currentTask;
+
                 // copy task
                 task_locker.lock();
-                function<void()> currentTask = task;
+                currentTask = task;
+                task = NULL;
                 task_locker.unlock();
 
                 if(currentTask != NULL) {
-                    task_free.store(false, memory_order_release);
-                    
-                    currentTask(); // run task and after reset resources
-                    currentTask = NULL;
-                    task = NULL;
+                    currentTask();      // run task
+                    currentTask = NULL; // reset task
                     
                     task_free.store(true, memory_order_release);
                 }
                 this_thread::sleep_for(chrono::milliseconds(10));
-                
-                // void (*currentTask)() = task.load(memory_order_acquire);
-                // auto currentTask = task.load(memory_order_acquire);
-                // if(currentTask != nullptr) {
-                //     currentTask();
-                //     // reset resources;
-                //     currentTask = nullptr;
-                //     task.store(nullptr, memory_order_release);
-                // }
-                // this_thread::sleep_for(chrono::milliseconds(10));
             }
         }
 
@@ -59,9 +47,10 @@ class ThreadUnit
             return task_free.load(memory_order_acquire);
         }
         
-        void changeTask(function<void()> newTask) {
+        void pushTask(function<void()> newTask) {
             task_locker.lock();
             this->task = newTask;
+            task_free.store(false, memory_order_release); // now task is busy
             task_locker.unlock();
         }
         
@@ -71,16 +60,27 @@ class ThreadUnit
                 th.join();
         }
 
-        ThreadUnit(){
-            th = thread(&ThreadUnit::loop);
+        // other constructs
+        ThreadUnit() {
+            this->task = NULL;
+            // th = make_unique<thread>(&ThreadUnit::loop, this);
+            // th = thread(&ThreadUnit::loop, this);
         }
 
-        ThreadUnit(function<void()> newTask){
+        ThreadUnit(function<void()> newTask) {
             this->task = newTask;
-            th = thread(&ThreadUnit::loop);
+            // th = make_unique<thread>(&ThreadUnit::loop, this);
+            // th = thread(&ThreadUnit::loop, this);
         }
 
-        ~ThreadUnit(){
+        // ThreadUnit(const ThreadUnit&) : ThreadUnit() {} // not recommended
+
+        ThreadUnit& operator=(const ThreadUnit&) = delete;
+        ThreadUnit& operator=(ThreadUnit&&) = default;
+        ThreadUnit(const ThreadUnit&) = delete;
+        ThreadUnit(ThreadUnit&&) = default;
+
+        ~ThreadUnit() {
             shutdownProcess();
         }
 };
