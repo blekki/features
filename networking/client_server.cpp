@@ -1,12 +1,12 @@
 // Pseudo-code about the client and server sides of network.
-// Compile: [g++ client-server.cpp -o client-server]
-// Run server side: [./client-server -s]
-// Run client side: [./client-server -c]
+// Compile: [g++ -std=c++20 client_server.cpp -o client_server]
+// Run server side: [./client_server -s]
+// Run client side: [./client_server -c]
 
 #include <stdlib.h>
 #include <iostream>
-#include <string_view>
 #include <string>
+#include <string_view>
 #include <vector>
 // thread
 #include <atomic>
@@ -37,7 +37,7 @@ private:
     int sock = 0;
 
 public:
-    void initReciever() {
+    void initAsReciever() {
         resetSock();  // close and clear prev socket
 
         // create socket
@@ -59,7 +59,7 @@ public:
         }
     }
 
-    void initSender() {
+    void initAsSender() {
         resetSock();  // close and clear prev socket
 
         // create socket
@@ -153,7 +153,7 @@ public:
                         std::cout << "[msg]:\n" << buffer << std::endl;
                     } else if (buf_size == 0) {
                         // close socket
-                        std::clog << "[log]: EOF\n";
+                        std::clog << "[log]: EOF. Connection stoped\n";
                         close(pollfds[i].fd);
                         pollfds.erase(pollfds.begin() + i);
                     } else {
@@ -173,7 +173,7 @@ public:
 
     void startup() {
         try {
-            server_sockguard.initReciever();
+            server_sockguard.initAsReciever();
             std::clog << "[log]: server socket initialized\n";
             resive();
         } catch (const std::exception& e) {
@@ -186,26 +186,28 @@ class Client
 {
 private:
     SockGuard client_sockguard;
-
     static const size_t BUFFER_SIZE = 128;
     char buffer[BUFFER_SIZE];
 
 private:
     void sendmsg() {
-        std::string text;
+        std::string msg;
 
         while (true) {
-            std::cout << "> ";
-            std::getline(std::cin, text);   // get input
-            if (std::string_view(text) == EXIT_CODE)
-                break;  // exit
+            std::getline(std::cin, msg);   // get input
+            if (std::string_view(msg) == EXIT_CODE) {
+                std::clog << "[log] App is stoping\n";
+                break;
+            } else {
+                std::cerr << "[warn] Unknown command:\n";
+            }
 
             size_t text_max_len = BUFFER_SIZE - 2;   // keep place for '\0'
             size_t copied = 0;
 
-            while (copied < text.size()) {
-                size_t to_copy = std::min(text.size(), text_max_len);
-                text.copy(buffer, to_copy, copied);
+            while (copied < msg.size()) {
+                size_t to_copy = std::min(msg.size(), text_max_len);
+                msg.copy(buffer, to_copy, copied);
                 buffer[to_copy + 1] = '\0';
                 copied += to_copy;
 
@@ -219,7 +221,7 @@ private:
 public:
     void startup() {
         try {
-            client_sockguard.initSender();
+            client_sockguard.initAsSender();
             std::clog << "[log]: client socket initialized" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << e.what() << std::endl;
@@ -228,6 +230,7 @@ public:
     }
 };
 
+// ##### functions section #####
 void runServerApp() {
     auto startupServer = [&]() {
         Server server;
@@ -236,18 +239,23 @@ void runServerApp() {
     std::thread th_server(startupServer);
 
     // choice when to stop the server and close the app
-    std::string signal;
-    while (std::string_view(signal) != EXIT_CODE) {
-        std::getline(std::cin, signal);
+    std::string command;
+    while (true) {
+        std::getline(std::cin, command);
+        if (std::string_view(command) == EXIT_CODE) {
+            std::clog << "[log] App is stoping\n";
+            break;
+        } else {
+            std::cerr << "[warn] Unknown command:\n";
+        }
     }
     should_stop.store(true, std::memory_order_release);
-    
+
     if (th_server.joinable())
         th_server.join();
 }
 
 void runClientApp() {
-    // todo: run client side
     Client client;
     client.startup();
 }
@@ -261,9 +269,11 @@ int main(const int args, const char* argv[]) {
             runServerApp();
         } else if (param == "-c") {
             runClientApp();
+        } else {
+            std::cerr << "[err] Wrong flag\n";
         }
-        std::cout << "App successfully shutdown\n";
+        std::cout << "[log] App successfully shutdown\n";
     } else {
-        std::cout << "[Tip]: Use [-s] or [-c] flag\n";
+        std::cout << "[Tip]: Try to use custom [-s] or [-c] flag\n";
     }
 }
