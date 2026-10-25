@@ -2,6 +2,7 @@
 // Compile: [g++ -std=c++20 client_server.cpp -o client_server]
 // Run server side: [./client_server -s]
 // Run client side: [./client_server -c]
+// To exit use the followed command "exit"
 
 #include <stdlib.h>
 #include <iostream>
